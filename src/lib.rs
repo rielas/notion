@@ -1,7 +1,7 @@
 use crate::ids::{BlockId, DatabaseId};
 use crate::models::error::ErrorResponse;
 use crate::models::search::{DatabaseQuery, SearchRequest};
-use crate::models::{Database, ListResponse, Object, Page};
+use crate::models::{Database, ListResponse, Object, Page, Properties};
 use ids::{AsIdentifier, PageId};
 use models::block::Block;
 use models::PageCreateRequest;
@@ -193,6 +193,39 @@ impl NotionApi {
             )
             .await?;
 
+        match result {
+            Object::Page { page } => Ok(page),
+            response => Err(Error::UnexpectedResponse { response }),
+        }
+    }
+
+    /// Update the page by [PageId].
+    pub async fn update_page<T: AsIdentifier<PageId>>(
+        &self,
+        page_id: T,
+        archived: Option<bool>,
+        properties: Option<Properties>,
+    ) -> Result<Page, Error> {
+        use serde_json::json;
+
+        // Serialize the updated page properties to JSON.
+        let mut body = json!({});
+        archived.map(|archived| body["archived"] = json!(archived));
+        properties.map(|properties| body["properties"] = json!(properties));
+
+        // Send a PATCH request to the Notion API.
+        let result = self
+            .make_json_request(
+                self.client
+                    .patch(format!(
+                        "https://api.notion.com/v1/pages/{}",
+                        page_id.as_id()
+                    ))
+                    .json(&body),
+            )
+            .await?;
+
+        // Parse the response.
         match result {
             Object::Page { page } => Ok(page),
             response => Err(Error::UnexpectedResponse { response }),
